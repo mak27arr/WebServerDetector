@@ -66,11 +66,14 @@ namespace WebServerDetector.Classes
             int addressperthread = addrescount / threadCount;
             if (addressperthread == 0)
             {
-                rezalt.Add(new Tuple<IPAddress, IPAddress>(network.Get));
+                rezalt.Add(new Tuple<IPAddress, IPAddress>(network.GetNetworkFirstAddress(subnetMask),network.GetNetworkLastAddress(subnetMask)));
             }
             else
             {
+                for(int i = 0; i < threadCount; i++)
+                {
 
+                }
             }
             return rezalt;
         }

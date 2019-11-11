@@ -24,7 +24,6 @@ namespace WebServerDetector.Classes.Helper
             }
             return new IPAddress(broadcastAddress);
         }
-
         public static IPAddress GetNetworkAddress(this IPAddress address, IPAddress subnetMask)
         {
             byte[] ipAdressBytes = address.GetAddressBytes();
@@ -72,6 +71,26 @@ namespace WebServerDetector.Classes.Helper
             broadcastAddress[broadcastAddress.Length - 1] -= 1;
             return new IPAddress(broadcastAddress);
         }
+        public static IPAddress GetNextAddress(this IPAddress address)
+        {
+            byte[] ipAdressBytes = address.GetAddressBytes();
+            ipAdressBytes[ipAdressBytes.Length - 1] += 1;
+            return new IPAddress(ipAdressBytes);
+        }
+        public static IPAddress AddToAddress(this IPAddress address,int count)
+        {
+            byte[] ipAdressBytes = address.GetAddressBytes();
+            int new_value = ipAdressBytes[ipAdressBytes.Length - 1] + (byte)count;
+            if (new_value <= 255)
+            {
+                ipAdressBytes[ipAdressBytes.Length - 1] = (byte)new_value;
+            }
+            else
+            {
+
+            }
+            return new IPAddress(ipAdressBytes);
+        }
         public static bool IsInSameSubnet(this IPAddress address2, IPAddress address, IPAddress subnetMask)
         {
             IPAddress network1 = address.GetNetworkAddress(subnetMask);
@@ -79,7 +98,6 @@ namespace WebServerDetector.Classes.Helper
 
             return network1.Equals(network2);
         }
-
         public static IPAddress GetSubnetMask(this IPAddress address)
         {
             foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
