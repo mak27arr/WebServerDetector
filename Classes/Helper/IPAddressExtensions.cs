@@ -87,6 +87,7 @@ namespace WebServerDetector.Classes.Helper
             }
             else
             {
+                ipAdressBytes[ipAdressBytes.Length - 1] = (byte)(new_value%255);
 
             }
             return new IPAddress(ipAdressBytes);
