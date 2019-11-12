@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DisplaySettingCCDSave.Classes
+namespace WebServerDetector.Classes
 {
 
     public static class Logging

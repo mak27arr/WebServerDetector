@@ -73,8 +73,13 @@ namespace WebServerDetector.Classes
 
         private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<ushort> ports)
         {
-            Parallel.ForEach(ports, port => { 
-            
+            Parallel.ForEach(ports, port => {
+                try {
+                    throw new NotImplementedException();
+                }catch(Exception ex)
+                {
+                    Logging.Log("Error scan port" + port,ex);
+                }
             });
             throw new NotImplementedException();
         }
