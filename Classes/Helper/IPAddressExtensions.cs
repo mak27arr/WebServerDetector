@@ -76,7 +76,7 @@ namespace WebServerDetector.Classes.Helper
         {
             int[] ipAdressBytes = address.GetAddressBytes().Select(x => (int)x).ToArray();
             ipAdressBytes[ipAdressBytes.Length - 1] += 1;
-            for (int i = ipAdressBytes.Length - 1; i < 0; i++)
+            for (int i = ipAdressBytes.Length - 1; i > 0; i--)
             {
                 if (ipAdressBytes[i] > 255)
                 {
@@ -90,7 +90,7 @@ namespace WebServerDetector.Classes.Helper
         {
             int[] ipAdressBytes = address.GetAddressBytes().Select(x=>(int)x).ToArray();
             ipAdressBytes[ipAdressBytes.Length - 1] += count;
-            for (int i = ipAdressBytes.Length - 1; i < 0; i++)
+            for (int i = ipAdressBytes.Length - 1; i > 0; i--)
             {
                 if (ipAdressBytes[i] > 255)
                 {
@@ -99,6 +99,21 @@ namespace WebServerDetector.Classes.Helper
                 }
             }
             return new IPAddress(ipAdressBytes.Select(x=>(byte)x).ToArray());
+        }
+        public static int GetAddressCountBetween(this IPAddress address, IPAddress address2)
+        {
+            byte[] ipAdressBytes = address.GetAddressBytes();
+            byte[] ipAdressBytes2 = address2.GetAddressBytes();
+            if (ipAdressBytes.Length == ipAdressBytes2.Length)
+            {
+                int rezalt = 0;
+                for (int i= 0;i< ipAdressBytes.Length; i++)
+                {
+                    rezalt += (ipAdressBytes2[i] - ipAdressBytes[i]);
+                }
+                return rezalt;
+            }
+            throw new ArgumentException(string.Format("Diferent addres type '{0}' '{1}'", address,address2));
         }
         public static bool IsInSameSubnet(this IPAddress address2, IPAddress address, IPAddress subnetMask)
         {

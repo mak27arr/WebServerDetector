@@ -11,7 +11,7 @@ namespace WebServerDetector
     {
         static void Main(string[] args)
         {
-
+            LicenseCheak.Cheak();
             var ni = NetworkInterface.GetAllNetworkInterfaces();
             foreach (NetworkInterface item in ni)
             {
