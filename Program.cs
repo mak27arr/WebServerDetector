@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using WebServerDetector.Classes;
+using System.Collections.Generic;
 
 namespace WebServerDetector
 {
@@ -12,24 +13,25 @@ namespace WebServerDetector
         static void Main(string[] args)
         {
             LicenseCheak.Cheak();
+            List<Scaner> scanerList = new List<Scaner>();
             var ni = NetworkInterface.GetAllNetworkInterfaces();
             foreach (NetworkInterface item in ni)
             {
-                if (item.OperationalStatus == OperationalStatus.Up) //&& item.NetworkInterfaceType == ?
+                if (item.OperationalStatus == OperationalStatus.Up)
                 {
                     foreach (UnicastIPAddressInformation ip in item.GetIPProperties().UnicastAddresses)
                     {
                         if (ip.Address.AddressFamily == AddressFamily.InterNetwork & !IPAddress.IsLoopback(ip.Address))
                         {
                             Scaner s = new Scaner(ip.Address,ip.Address.GetSubnetMask());
-                            s.ScanAsync(ip.Address, ip.Address.GetSubnetMask());
-
-                            Console.WriteLine(ip.Address + "   " + ip.Address.GetPosibleAddressCount(ip.Address.GetSubnetMask()));
+                            s.Scan(ip.Address, ip.Address.GetSubnetMask());
+                            s.SetRefreshTime(60);
+                            s.StartScan(ip.Address, ip.Address.GetSubnetMask());
+                            scanerList.Add(s);
                         }
                     }
                 }
             }
-            Console.WriteLine((13/16).ToString());
             Console.ReadLine();
             Console.WriteLine("Hello World!");
         }

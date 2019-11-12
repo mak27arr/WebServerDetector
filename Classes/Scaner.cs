@@ -53,6 +53,8 @@ namespace WebServerDetector.Classes
         }
         public async Task<bool> ScanAsync(IPAddress network, IPAddress subnetMask)
         {
+            //Винесення в оремий потік тут скоріш завсе сповільнює сканування. Потрібно перевірити.
+            return await Task<bool>.Run(async ()=> { 
             services = new ConcurrentBag<ServicesInfo>();
             var addresslist = GetListAddresesForThread(network,subnetMask);
             List<Task<bool>> taskscanlist = new List<Task<bool>>();
@@ -73,8 +75,8 @@ namespace WebServerDetector.Classes
                     return false;
             }
             return true;
+            });
         }
-
         private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<ushort> ports)
         {
             int counttest = startAddress.GetAddressCountBetween(endAddress);
