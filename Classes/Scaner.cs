@@ -10,12 +10,12 @@ using WebServerDetector.Classes.Helper;
 
 namespace WebServerDetector.Classes
 {
-    class Scaner : IScaner
+    internal class Scaner : IScaner
     {
         private IPAddress network;
         private IPAddress subnetMask;
         private List<ushort> portslist;
-        private ConcurrentBag<ServicesInfo> services;
+        private static ConcurrentBag<ServicesInfo> services;
         private int threadCount;
         private static System.Timers.Timer scanTimer;
         private int timeout;
@@ -43,9 +43,13 @@ namespace WebServerDetector.Classes
             this.timeout = 1;
             LicenseCheak.Cheak();
         }
-        public List<ServicesInfo> GetSrvices()
+        public static List<ServicesInfo> GetSrvices()
         {
             return services.ToArray().ToList();
+        }
+        List<ServicesInfo> IScaner.GetSrvices()
+        {
+            return Scaner.GetSrvices();
         }
         public bool Scan(IPAddress network, IPAddress subnetMask)
         {

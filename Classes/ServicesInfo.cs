@@ -5,7 +5,7 @@ using WebServerDetector.Interfaces;
 
 namespace WebServerDetector.Classes
 {
-    class ServicesInfo : IServicesInfo
+    public class ServicesInfo : IServicesInfo
     {
         public string Name { get; }
         public string Version { get; }

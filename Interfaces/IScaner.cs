@@ -7,7 +7,7 @@ using WebServerDetector.Classes;
 
 namespace WebServerDetector.Interfaces
 {
-    interface IScaner
+    public interface IScaner
     {
         List<ServicesInfo> GetSrvices();
         bool Scan(IPAddress network, IPAddress subnetMask);
