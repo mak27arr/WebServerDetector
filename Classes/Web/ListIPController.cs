@@ -9,22 +9,29 @@ namespace WebServerDetector.Classes.Web
     [ApiController]
     class ListIPController : ControllerBase
     {
-        // GET
+        public ListIPController() : base()
+        {
+            LicenseCheak.Cheak();
+        }
+        //GET
         [HttpGet]
         public ActionResult<IEnumerable<string>> Get()
         {
+            LicenseCheak.Cheak();
             throw new NotImplementedException();
         }
-        // GET /5
+        //GET/5
         [HttpGet("{ip}")]
         public ActionResult<string> Get(string ip)
         {
+            LicenseCheak.Cheak();
             throw new NotImplementedException();
         }
-        // POST api/weight
+        //POST api/weight
         [HttpPost]
         public void Post([FromBody] string refresg)
         {
+            LicenseCheak.Cheak();
             throw new NotImplementedException();
         }
     }
