@@ -14,6 +14,7 @@ namespace WebServerDetector.Classes
     {
         private IPAddress network;
         private IPAddress subnetMask;
+        private List<ushort> portslist;
         private ConcurrentBag<ServicesInfo> services;
         private int threadCount;
         private static System.Timers.Timer scanTimer;
@@ -31,10 +32,13 @@ namespace WebServerDetector.Classes
                 else
                     threadCount = 1;
                     }}
-        public Scaner(IPAddress network)
+        public Scaner(IPAddress network, IPAddress subnetMask)
         {
             services = new ConcurrentBag<ServicesInfo>();
             RefreshTime = 60000;
+            this.threadCount = Environment.ProcessorCount * 8;
+            this.network = network;
+            this.subnetMask = subnetMask;
         }
         public List<ServicesInfo> GetSrvices()
         {
@@ -46,16 +50,32 @@ namespace WebServerDetector.Classes
         }
         public async Task<bool> ScanAsync(IPAddress network, IPAddress subnetMask)
         {
-            int addrescount  = network.GetPosibleAddressCount(subnetMask);
-            int addressperthread = addrescount / threadCount;
-            if (addressperthread == 0)
+            var addresslist = GetListAddresesForThread(network,subnetMask);
+            List<Task<bool>> taskscanlist = new List<Task<bool>>();
+            List<ushort> ports = new List<ushort>();
+            if (portslist.Count == 0) 
             {
-
+               for(ushort i =0; i<= 65535; i++)
+                    ports.Add(i);
             }
-            else
+            foreach(var address in addresslist)
             {
-
+                taskscanlist.Add(Task<bool>.Factory.StartNew(() => { return ScanerThread(address.Item1, address.Item2, portslist); })); ;
             }
+            await Task.WhenAll(taskscanlist.ToArray());
+            foreach(var task in taskscanlist)
+            {
+                if (!task.Result)
+                    return false;
+            }
+            return true;
+        }
+
+        private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<ushort> ports)
+        {
+            Parallel.ForEach(ports, port => { 
+            
+            });
             throw new NotImplementedException();
         }
 
@@ -70,9 +90,16 @@ namespace WebServerDetector.Classes
             }
             else
             {
-                for(int i = 0; i < threadCount; i++)
+                var first_add = network.GetNetworkFirstAddress(subnetMask);
+                for (int i = 0; i < threadCount; i++)
                 {
-
+                    var last_add = first_add.AddToAddress(addressperthread);
+                    if (i == (threadCount - 1))
+                    {
+                        last_add = network.GetNetworkLastAddress(subnetMask);
+                    }
+                    rezalt.Add(new Tuple<IPAddress, IPAddress>(first_add, last_add));
+                    first_add = last_add.GetNextAddress();
                 }
             }
             return rezalt;

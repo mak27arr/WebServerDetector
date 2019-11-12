@@ -3,6 +3,7 @@ using WebServerDetector.Classes.Helper;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using WebServerDetector.Classes;
 
 namespace WebServerDetector
 {
@@ -10,7 +11,6 @@ namespace WebServerDetector
     {
         static void Main(string[] args)
         {
-
 
             var ni = NetworkInterface.GetAllNetworkInterfaces();
             foreach (NetworkInterface item in ni)
@@ -21,6 +21,9 @@ namespace WebServerDetector
                     {
                         if (ip.Address.AddressFamily == AddressFamily.InterNetwork & !IPAddress.IsLoopback(ip.Address))
                         {
+                            Scaner s = new Scaner(ip.Address,ip.Address.GetSubnetMask());
+                            s.ScanAsync(ip.Address, ip.Address.GetSubnetMask());
+
                             Console.WriteLine(ip.Address + "   " + ip.Address.GetPosibleAddressCount(ip.Address.GetSubnetMask()));
                         }
                     }
