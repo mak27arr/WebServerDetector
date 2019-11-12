@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -73,24 +74,31 @@ namespace WebServerDetector.Classes.Helper
         }
         public static IPAddress GetNextAddress(this IPAddress address)
         {
-            byte[] ipAdressBytes = address.GetAddressBytes();
+            int[] ipAdressBytes = address.GetAddressBytes().Select(x => (int)x).ToArray();
             ipAdressBytes[ipAdressBytes.Length - 1] += 1;
-            return new IPAddress(ipAdressBytes);
+            for (int i = ipAdressBytes.Length - 1; i < 0; i++)
+            {
+                if (ipAdressBytes[i] > 255)
+                {
+                    ipAdressBytes[i] = ipAdressBytes[i] % 255;
+                    ipAdressBytes[i - 1] += ipAdressBytes[i] / 255;
+                }
+            }
+            return new IPAddress(ipAdressBytes.Select(x => (byte)x).ToArray());
         }
         public static IPAddress AddToAddress(this IPAddress address,int count)
         {
-            byte[] ipAdressBytes = address.GetAddressBytes();
-            int new_value = ipAdressBytes[ipAdressBytes.Length - 1] + (byte)count;
-            if (new_value <= 255)
+            int[] ipAdressBytes = address.GetAddressBytes().Select(x=>(int)x).ToArray();
+            ipAdressBytes[ipAdressBytes.Length - 1] += count;
+            for (int i = ipAdressBytes.Length - 1; i < 0; i++)
             {
-                ipAdressBytes[ipAdressBytes.Length - 1] = (byte)new_value;
+                if (ipAdressBytes[i] > 255)
+                {
+                    ipAdressBytes[i] = ipAdressBytes[i] % 255;
+                    ipAdressBytes[i - 1] += ipAdressBytes[i] / 255;
+                }
             }
-            else
-            {
-                ipAdressBytes[ipAdressBytes.Length - 1] = (byte)(new_value%255);
-
-            }
-            return new IPAddress(ipAdressBytes);
+            return new IPAddress(ipAdressBytes.Select(x=>(byte)x).ToArray());
         }
         public static bool IsInSameSubnet(this IPAddress address2, IPAddress address, IPAddress subnetMask)
         {
