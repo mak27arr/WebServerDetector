@@ -64,6 +64,7 @@ namespace WebServerDetector.Classes
                 return false;
             //Винесення в оремий потік тут скоріш завсе сповільнює сканування. Потрібно перевірити.
             return await Task<bool>.Run(async ()=> {
+                //це капець який жорсткий баг
                 List<Task<bool>> taskscanlist = new List<Task<bool>>();
                 lock (scaningLocker)
                 {
