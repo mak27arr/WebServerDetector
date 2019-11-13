@@ -110,7 +110,7 @@ namespace WebServerDetector.Classes
                     }
                     catch (WebException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
                     catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
-                    catch (Exception ex){ System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (Exception ex){ Notify?.Invoke(ex.ToString()); }
                     try
                     {
                         HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://" + startAddress.ToString() + ":" + port);
@@ -121,7 +121,7 @@ namespace WebServerDetector.Classes
                     }
                     catch (WebException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
                     catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
-                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
                     startAddress = startAddress.GetNextAddress();
                 });
             });
