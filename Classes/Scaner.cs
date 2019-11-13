@@ -18,7 +18,9 @@ namespace WebServerDetector.Classes
         private static ConcurrentBag<ServicesInfo> services;
         private int threadCount;
         private static System.Timers.Timer scanTimer;
-        private int timeout;
+        private double timeout;
+        private object scaningLocker = new object();
+        private bool scanStartted = false;
         public int RefreshTime { get; private set; }
         public delegate void MessageHandler(string msg);
         public event MessageHandler Notify = delegate { };
@@ -40,7 +42,7 @@ namespace WebServerDetector.Classes
             this.threadCount = Environment.ProcessorCount * 8;
             this.network = network;
             this.subnetMask = subnetMask;
-            this.timeout = 1;
+            this.timeout = 0.5;
             this.portslist = new List<int>();
             LicenseCheak.Cheak();
         }
@@ -52,69 +54,78 @@ namespace WebServerDetector.Classes
         {
             return Scaner.GetSrvices();
         }
-        public bool Scan(IPAddress network = null, IPAddress subnetMask = null)
+        public bool Scan(IPAddress network, IPAddress subnetMask)
         {
             return ScanAsync(network, subnetMask).Result;
         }
-        public async Task<bool> ScanAsync(IPAddress network=null, IPAddress subnetMask=null)
+        public async Task<bool> ScanAsync(IPAddress network, IPAddress subnetMask)
         {
+            if (scanStartted)
+                return false;
             //Винесення в оремий потік тут скоріш завсе сповільнює сканування. Потрібно перевірити.
-            return await Task<bool>.Run(async ()=> { 
-            services = new ConcurrentBag<ServicesInfo>();
-                List<Tuple<IPAddress, IPAddress>> addresslist = new List<Tuple<IPAddress, IPAddress>>();
-                if (network==null || subnetMask==null)
-                    addresslist = GetListAddresesForThread(this.network,this.subnetMask);
-                else
-                    addresslist = GetListAddresesForThread(network, subnetMask);
-            List<Task<bool>> taskscanlist = new List<Task<bool>>();
-            if (portslist == null)
-                    portslist = new List<int>();
-            if (portslist.Count == 0) 
-            {
-               for(int i =0; i<= 65535; i++)
-                        portslist.Add(i);
-            }
-            foreach(var address in addresslist)
-            {
-                taskscanlist.Add(Task<bool>.Factory.StartNew(() => { return ScanerThread(address.Item1, address.Item2, portslist); })); ;
-            }
+            return await Task<bool>.Run(async ()=> {
+                //це капець який жорсткий баг
+                List<Task<bool>> taskscanlist = new List<Task<bool>>();
+                lock (scaningLocker)
+                {
+                    scanStartted = true;
+                    Notify("Scanning start for network:" + network.ToString() + " subnet:" + subnetMask.ToString());
+                    services = new ConcurrentBag<ServicesInfo>();
+                    var addresslist = GetListAddresesForThread(network, subnetMask);
+                    if (portslist == null)
+                        portslist = new List<int>();
+                    if (portslist.Count == 0)
+                    {
+                        for (int i = 80; i <= 65535; i++)
+                            portslist.Add(i);
+                    }
+                    foreach (var address in addresslist)
+                    {
+                        taskscanlist.Add(Task<bool>.Factory.StartNew(() => { return ScanerThread(address.Item1, address.Item2, portslist); })); ;
+                    }
+                }
             await Task.WhenAll(taskscanlist.ToArray());
+            Notify("Scanning ended for network:" + network.ToString()+" subnet:"+subnetMask.ToString());
+                scanStartted = false;
             foreach(var task in taskscanlist)
             {
                 if (!task.Result)
                     return false;
             }
             return true;
+                    
             });
         }
         private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<int> ports)
         {
-            Notify?.Invoke("Thread start scan from "+ startAddress.ToString() + " to " + endAddress.ToString());
             int counttest = startAddress.GetAddressCountBetween(endAddress);
             Parallel.For(0, counttest, i=>{
                 Parallel.ForEach(ports, port => {
                     try
                     {
                         HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://"+startAddress.ToString()+":"+port);
-                        request.Timeout = timeout;
+                        request.Timeout = (int)(timeout*1000);
                         WebResponse response = request.GetResponse();
                         ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"),startAddress.ToString(),port,Protocol.http);
                         services.Add(si);
                     }
-                    catch(Exception ex){ System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (WebException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (Exception ex){ Notify?.Invoke(ex.ToString()); }
                     try
                     {
                         HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://" + startAddress.ToString() + ":" + port);
-                        request.Timeout = timeout;
+                        request.Timeout = (int)(timeout * 1000);
                         WebResponse response = request.GetResponse();
                         ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.https);
                         services.Add(si);
                     }
-                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (WebException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
+                    catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
                     startAddress = startAddress.GetNextAddress();
                 });
             });
-            Notify?.Invoke("Thread end scan from " + startAddress.ToString() + " to " + endAddress.ToString());
             return true;
         }
         private List<Tuple<IPAddress,IPAddress>> GetListAddresesForThread(IPAddress network, IPAddress subnetMask)
@@ -148,7 +159,7 @@ namespace WebServerDetector.Classes
             Notify?.Invoke("Refresh time set: " + second);
             return true;
         }
-        public bool StartScan(IPAddress network=null, IPAddress subnetMask=null)
+        public bool StartScan(IPAddress network, IPAddress subnetMask)
         {
             if (network != null && subnetMask !=null)
             {
@@ -190,8 +201,3 @@ namespace WebServerDetector.Classes
         }
     }
 }
-//IPAddress network=null, IPAddress subnetMask=null
-//Notify?.Invoke("Thread start scan from "+ startAddress.ToString() + " to " + endAddress.ToString());
-Scaner s = new Scaner(new IPAddress(new byte[] { 5, 0, 0, 0 }), new IPAddress(new byte[] { 255, 0, 0, 0 }));
-s.SetRefreshTime(360);
-            s.StartScan();
