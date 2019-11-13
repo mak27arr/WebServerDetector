@@ -27,6 +27,7 @@ namespace WebServerDetector
                             //s.Scan(ip.Address, ip.Address.GetSubnetMask());
                             s.SetRefreshTime(60);
                             s.StartScan(ip.Address, ip.Address.GetSubnetMask());
+                            s.Notify+=PrintMsg;
                             scanerList.Add(s);
                         }
                     }
@@ -37,6 +38,11 @@ namespace WebServerDetector
 
             Console.ReadLine();
             webServer.StopAsync();
+        }
+
+        static void PrintMsg(string msg)
+        {
+            Console.WriteLine(msg);
         }
     }
 }
