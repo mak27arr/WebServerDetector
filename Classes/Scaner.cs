@@ -14,7 +14,7 @@ namespace WebServerDetector.Classes
     {
         private IPAddress network;
         private IPAddress subnetMask;
-        private List<ushort> portslist;
+        private List<int> portslist;
         private static ConcurrentBag<ServicesInfo> services;
         private int threadCount;
         private static System.Timers.Timer scanTimer;
@@ -41,6 +41,7 @@ namespace WebServerDetector.Classes
             this.network = network;
             this.subnetMask = subnetMask;
             this.timeout = 1;
+            this.portslist = new List<int>();
             LicenseCheak.Cheak();
         }
         public static List<ServicesInfo> GetSrvices()
@@ -62,11 +63,12 @@ namespace WebServerDetector.Classes
             services = new ConcurrentBag<ServicesInfo>();
             var addresslist = GetListAddresesForThread(network,subnetMask);
             List<Task<bool>> taskscanlist = new List<Task<bool>>();
-            List<ushort> ports = new List<ushort>();
+            if (portslist == null)
+                    portslist = new List<int>();
             if (portslist.Count == 0) 
             {
-               for(ushort i =0; i<= 65535; i++)
-                    ports.Add(i);
+               for(int i =0; i<= 65535; i++)
+                        portslist.Add(i);
             }
             foreach(var address in addresslist)
             {
@@ -81,7 +83,7 @@ namespace WebServerDetector.Classes
             return true;
             });
         }
-        private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<ushort> ports)
+        private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<int> ports)
         {
             int counttest = startAddress.GetAddressCountBetween(endAddress);
             Parallel.For(0, counttest, i=>{

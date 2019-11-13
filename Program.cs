@@ -24,7 +24,7 @@ namespace WebServerDetector
                         if (ip.Address.AddressFamily == AddressFamily.InterNetwork & !IPAddress.IsLoopback(ip.Address))
                         {
                             Scaner s = new Scaner(ip.Address,ip.Address.GetSubnetMask());
-                            s.Scan(ip.Address, ip.Address.GetSubnetMask());
+                            //s.Scan(ip.Address, ip.Address.GetSubnetMask());
                             s.SetRefreshTime(60);
                             s.StartScan(ip.Address, ip.Address.GetSubnetMask());
                             scanerList.Add(s);
@@ -32,8 +32,11 @@ namespace WebServerDetector
                     }
                 }
             }
+            WebServer webServer = WebServer.GetInstance();
+            webServer.StartAsync(new string[0]);
+
             Console.ReadLine();
-            Console.WriteLine("Hello World!");
+            webServer.StopAsync();
         }
     }
 }

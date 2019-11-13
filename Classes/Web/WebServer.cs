@@ -5,16 +5,15 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace WebServerDetector.Classes.Web
-{
+namespace WebServerDetector { 
     class WebServer
     {
-        private static object syncRoot;
-        private WebServer instance;
+        private static object syncRoot = new object();
+        private static WebServer instance;
         private IWebHost iWebHB;
         private bool started = false;
         private WebServer() {}
-        public WebServer GetInstance()
+        public static WebServer GetInstance()
         {
             lock (syncRoot)
             {
