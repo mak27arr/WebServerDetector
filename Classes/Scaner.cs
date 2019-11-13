@@ -58,7 +58,7 @@ namespace WebServerDetector.Classes
         {
             return ScanAsync(network, subnetMask).Result;
         }
-        public async Task<bool> ScanAsync(IPAddress network, IPAddress subnetMask)
+        public async Task<bool> ScanAsync(IPAddress network = null, IPAddress subnetMask = null)
         {
             if (scanStartted)
                 return false;
@@ -69,9 +69,12 @@ namespace WebServerDetector.Classes
                 lock (scaningLocker)
                 {
                     scanStartted = true;
-                    Notify("Scanning start for network:" + network.ToString() + " subnet:" + subnetMask.ToString());
                     services = new ConcurrentBag<ServicesInfo>();
-                    var addresslist = GetListAddresesForThread(network, subnetMask);
+                    List<Tuple<IPAddress, IPAddress>> addresslist = new List<Tuple<IPAddress, IPAddress>>();
+                    if (network==null || subnetMask == null)
+                         addresslist = GetListAddresesForThread(this.network, this.subnetMask);
+                    else
+                        addresslist = GetListAddresesForThread(network, subnetMask);
                     if (portslist == null)
                         portslist = new List<int>();
                     if (portslist.Count == 0)
@@ -85,8 +88,7 @@ namespace WebServerDetector.Classes
                     }
                 }
             await Task.WhenAll(taskscanlist.ToArray());
-            Notify("Scanning ended for network:" + network.ToString()+" subnet:"+subnetMask.ToString());
-                scanStartted = false;
+            scanStartted = false;
             foreach(var task in taskscanlist)
             {
                 if (!task.Result)
@@ -98,9 +100,10 @@ namespace WebServerDetector.Classes
         }
         private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<int> ports)
         {
+            Notify?.Invoke("Thread start scan from " + startAddress.ToString() + " to " + endAddress.ToString());
             int counttest = startAddress.GetAddressCountBetween(endAddress);
             Parallel.For(0, counttest, i=>{
-                Parallel.ForEach(ports, port => {
+                Parallel.ForEach(ports, (port,state) => {
                     try
                     {
                         HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://"+startAddress.ToString()+":"+port);
@@ -123,9 +126,13 @@ namespace WebServerDetector.Classes
                     catch (WebException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
                     catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
                     catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
+                    
+                    if(endAddress.Equals(startAddress))
+                        state.Break();
                     startAddress = startAddress.GetNextAddress();
                 });
             });
+            Notify?.Invoke("Thread end scan from " + startAddress.ToString() + " to " + endAddress.ToString());
             return true;
         }
         private List<Tuple<IPAddress,IPAddress>> GetListAddresesForThread(IPAddress network, IPAddress subnetMask)
@@ -159,7 +166,7 @@ namespace WebServerDetector.Classes
             Notify?.Invoke("Refresh time set: " + second);
             return true;
         }
-        public bool StartScan(IPAddress network, IPAddress subnetMask)
+        public bool StartScan(IPAddress network = null, IPAddress subnetMask = null)
         {
             if (network != null && subnetMask !=null)
             {
@@ -168,19 +175,20 @@ namespace WebServerDetector.Classes
             }
             else
             {
-                Notify?.Invoke("Can`t set null network or subnetMask");
-                return false;
+                Notify?.Invoke("Can`t set null network or subnetMask. Use default setting");
             }
             if (scanTimer != null)
             {
                 Notify?.Invoke("Scanning monitor already launched");
                 return false;
             }
+
             scanTimer = new System.Timers.Timer(RefreshTime);
-            scanTimer.Elapsed += delegate{ ScanAsync(this.network, this.subnetMask); };
+            scanTimer.Elapsed += delegate{ ScanAsync(null, null); };
             scanTimer.AutoReset = true;
             scanTimer.Enabled = true;
             Notify?.Invoke("Scanning monitor launched");
+            ScanAsync(null, null);
             return true;
         }
         public bool StopScan()

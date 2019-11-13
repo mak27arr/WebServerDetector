@@ -94,8 +94,8 @@ namespace WebServerDetector.Classes.Helper
             {
                 if (ipAdressBytes[i] > 255)
                 {
-                    ipAdressBytes[i] = ipAdressBytes[i] % 255;
                     ipAdressBytes[i - 1] += ipAdressBytes[i] / 255;
+                    ipAdressBytes[i] = ipAdressBytes[i] % 255;
                 }
             }
             return new IPAddress(ipAdressBytes.Select(x=>(byte)x).ToArray());
@@ -106,12 +106,14 @@ namespace WebServerDetector.Classes.Helper
             byte[] ipAdressBytes2 = address2.GetAddressBytes();
             if (ipAdressBytes.Length == ipAdressBytes2.Length)
             {
-                int rezalt = 0;
-                for (int i= 0;i< ipAdressBytes.Length; i++)
+                string binaddress = "";
+                string binaddress2 = "";
+                for (int i=0; i< ipAdressBytes.Length; i++)
                 {
-                    rezalt += (ipAdressBytes2[i] - ipAdressBytes[i]);
+                    binaddress += Convert.ToString(ipAdressBytes[i],2).PadLeft(8,'0');
+                    binaddress2 += Convert.ToString(ipAdressBytes2[i], 2).PadLeft(8, '0');
                 }
-                return rezalt;
+                return Convert.ToInt32(binaddress2, 2) - Convert.ToInt32(binaddress,2)+1;
             }
             throw new ArgumentException(string.Format("Diferent addres type '{0}' '{1}'", address,address2));
         }
@@ -142,12 +144,13 @@ namespace WebServerDetector.Classes.Helper
         public static int GetPosibleAddressCount(this IPAddress address, IPAddress subnetMask)
         {
             byte[] subnetMaskBytes = subnetMask.GetAddressBytes();
-            int count = 0;
+            int count = 1;
             foreach(var octet in subnetMaskBytes)
             {
-                count += 255 - octet;
+                count = count*((255-octet)==0?1: (255 - octet));
             }
-            return count-2;
+            count -= 2; 
+            return count<0?0:count;
         }
     }
 }
