@@ -75,7 +75,7 @@ namespace WebServerDetector.Classes
                         portslist = new List<int>();
                     if (portslist.Count == 0)
                     {
-                        for (int i = 0; i <= 65535; i++)
+                        for (int i = 80; i <= 65535; i++)
                             portslist.Add(i);
                     }
                     foreach (var address in addresslist)
