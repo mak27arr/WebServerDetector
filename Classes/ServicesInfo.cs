@@ -19,10 +19,23 @@ namespace WebServerDetector.Classes
             this.Port = port;
             this.protocol = protocol;
         }
+
+        public override bool Equals(object obj)
+        {
+            var item = obj as ServicesInfo;
+
+            if (item == null)
+            {
+                return false;
+            }
+
+            return this.IP.Equals(item.IP) && this.Port.Equals(item.Port) && this.protocol.Equals(item.protocol);
+        }
     }
 
     public enum Protocol
     {
+        unknown,
         http,
         https
     }

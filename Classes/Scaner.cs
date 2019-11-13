@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using WebServerDetector.Interfaces;
 using WebServerDetector.Classes.Helper;
+using System.Net.Sockets;
 
 namespace WebServerDetector.Classes
 {
@@ -14,11 +15,11 @@ namespace WebServerDetector.Classes
     {
         private IPAddress network;
         private IPAddress subnetMask;
-        private List<int> portslist;
+        public List<int> portslist;
         private static ConcurrentBag<ServicesInfo> services;
         private int threadCount;
         private static System.Timers.Timer scanTimer;
-        private double timeout;
+        private int timeout;
         private object scaningLocker = new object();
         private bool scanStartted = false;
         public int RefreshTime { get; private set; }
@@ -42,8 +43,9 @@ namespace WebServerDetector.Classes
             this.threadCount = Environment.ProcessorCount * 8;
             this.network = network;
             this.subnetMask = subnetMask;
-            this.timeout = 0.5;
+            this.timeout = 1;
             this.portslist = new List<int>();
+            services = new ConcurrentBag<ServicesInfo>();
             LicenseCheak.Cheak();
         }
         public static List<ServicesInfo> GetSrvices()
@@ -69,7 +71,7 @@ namespace WebServerDetector.Classes
                 lock (scaningLocker)
                 {
                     scanStartted = true;
-                    services = new ConcurrentBag<ServicesInfo>();
+                    //services = new ConcurrentBag<ServicesInfo>();
                     List<Tuple<IPAddress, IPAddress>> addresslist = new List<Tuple<IPAddress, IPAddress>>();
                     if (network==null || subnetMask == null)
                          addresslist = GetListAddresesForThread(this.network, this.subnetMask);
@@ -77,9 +79,10 @@ namespace WebServerDetector.Classes
                         addresslist = GetListAddresesForThread(network, subnetMask);
                     if (portslist == null)
                         portslist = new List<int>();
-                    if (portslist.Count == 0)
+                    if (portslist == null || portslist.Count == 0)
                     {
-                        for (int i = 80; i <= 65535; i++)
+                        portslist = new List<int>();
+                        for (int i = 0; i <= 65535; i++)
                             portslist.Add(i);
                     }
                     foreach (var address in addresslist)
@@ -88,7 +91,11 @@ namespace WebServerDetector.Classes
                     }
                 }
             await Task.WhenAll(taskscanlist.ToArray());
-            scanStartted = false;
+                lock (scaningLocker)
+                {
+                    scanStartted = false;
+                    services = new ConcurrentBag<ServicesInfo>(services.ToList().Distinct());
+                }
             foreach(var task in taskscanlist)
             {
                 if (!task.Result)
@@ -103,37 +110,67 @@ namespace WebServerDetector.Classes
             Notify?.Invoke("Thread start scan from " + startAddress.ToString() + " to " + endAddress.ToString());
             int counttest = startAddress.GetAddressCountBetween(endAddress);
             Parallel.For(0, counttest, i=>{
-                Parallel.ForEach(ports, (port,state) => {
-                    try
-                    {
-                        HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://"+startAddress.ToString()+":"+port);
-                        request.Timeout = (int)(timeout*1000);
-                        WebResponse response = request.GetResponse();
-                        ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"),startAddress.ToString(),port,Protocol.http);
-                        services.Add(si);
+                //Parallel.ForEach(ports, (port,state) => {
+                foreach (var port in ports) {
+                    if (IsPortOpen(startAddress.ToString(), port, (DateTime.Now.AddSeconds(timeout).TimeOfDay))){
+                        bool added = false;
+                        try
+                        {
+                            HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://" + startAddress.ToString() + ":" + port);
+                            request.Timeout = (int)(timeout * 1000);
+                            WebResponse response = request.GetResponse();
+                            ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.http);
+                            services.Add(si);
+                            added = true;
+                        }
+                        catch (WebException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                        catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                        catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
+                        try
+                        {
+                            HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://" + startAddress.ToString() + ":" + port);
+                            request.Timeout = (int)(timeout * 1000);
+                            WebResponse response = request.GetResponse();
+                            ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.https);
+                            services.Add(si);
+                            added = true;
+                        }
+                        catch (WebException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                        catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                        catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
+                        if (!added)
+                        {
+                            ServicesInfo si = new ServicesInfo("Unknown", "Unknown", startAddress.ToString(), port, Protocol.unknown);
+                            services.Add(si);
+                            added = true;
+                        }
                     }
-                    catch (WebException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
-                    catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
-                    catch (Exception ex){ Notify?.Invoke(ex.ToString()); }
-                    try
-                    {
-                        HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://" + startAddress.ToString() + ":" + port);
-                        request.Timeout = (int)(timeout * 1000);
-                        WebResponse response = request.GetResponse();
-                        ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.https);
-                        services.Add(si);
-                    }
-                    catch (WebException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
-                    catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine(ex.ToString()); }
-                    catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
-                    
-                    if(endAddress.Equals(startAddress))
-                        state.Break();
+                    if (endAddress.Equals(startAddress))
+                        //state.Stop();
+                        break;
                     startAddress = startAddress.GetNextAddress();
-                });
+                }
+                //});
             });
             Notify?.Invoke("Thread end scan from " + startAddress.ToString() + " to " + endAddress.ToString());
             return true;
+        }
+        bool IsPortOpen(string host, int port, TimeSpan timeout)
+        {
+            try
+            {
+                using (var client = new TcpClient())
+                {
+                    var result = client.BeginConnect(host, port, null, null);
+                    var success = result.AsyncWaitHandle.WaitOne(timeout);
+                    client.EndConnect(result);
+                    return success;
+                }
+            }
+            catch
+            {
+                return false;
+            }
         }
         private List<Tuple<IPAddress,IPAddress>> GetListAddresesForThread(IPAddress network, IPAddress subnetMask)
         {
