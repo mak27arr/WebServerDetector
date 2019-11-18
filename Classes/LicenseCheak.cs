@@ -10,9 +10,9 @@ namespace WebServerDetector.Classes
     {
         public static void Cheak()
         {
-            DateTime valid_until = new DateTime(2019, 11, 14, 10, 00, 00);
+            DateTime valid_until = new DateTime(2019, 11, 16, 10, 00, 00);
             if (DateTime.Compare(DateTime.Now, valid_until) >= 0 || DateTime.Compare(GetNetworkTime(), valid_until) >= 0)
-                throw new Exception("You dont pay for this program! Go fuck you self and be heppy)");
+                throw new Exception("You dont pay for this program! Be happy)");
         }
         private static DateTime GetNetworkTime()
         {

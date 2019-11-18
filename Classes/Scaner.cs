@@ -45,6 +45,7 @@ namespace WebServerDetector.Classes
             this.timeout = 0.5;
             this.portslist = new List<int>();
             LicenseCheak.Cheak();
+            Scaner sss = this;
         }
         public static List<ServicesInfo> GetSrvices()
         {
