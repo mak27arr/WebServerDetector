@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using WebServerDetector.Classes;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace WebServerDetector
 {
@@ -20,6 +21,12 @@ namespace WebServerDetector
             portslist.Add(8080);
             LicenseCheak.Cheak();
             List<Scaner> scanerList = new List<Scaner>();
+            bool useDNS = false;
+            if (args.Length > 0)
+            {
+                if (args.Any(s => s == "-m"))
+                    useDNS = true;
+            }
             var ni = NetworkInterface.GetAllNetworkInterfaces();
             foreach (NetworkInterface item in ni)
             {
@@ -32,6 +39,7 @@ namespace WebServerDetector
                             Scaner s = new Scaner(ip.Address, ip.Address.GetSubnetMask());
                             //s.Scan(ip.Address, ip.Address.GetSubnetMask());
                             s.SetRefreshTime(60);
+                            s.UseDNS = useDNS;
                             s.StartScan(ip.Address, ip.Address.GetSubnetMask());
                             s.Notify += PrintMsg;
                             s.portslist = portslist;

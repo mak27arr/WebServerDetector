@@ -23,6 +23,7 @@ namespace WebServerDetector.Classes
         private object scaningLocker = new object();
         private bool scanStartted = false;
         public int RefreshTime { get; private set; }
+        public bool UseDNS { get; set; }
         public delegate void MessageHandler(string msg);
         public event MessageHandler Notify = delegate { };
         public int ThreadCount { 
@@ -111,46 +112,14 @@ namespace WebServerDetector.Classes
             Notify?.Invoke("Thread start scan from " + startAddress.ToString() + " to " + endAddress.ToString());
             int counttest = startAddress.GetAddressCountBetween(endAddress);
             Parallel.For(0, counttest, i=>{
-                Parallel.ForEach(ports, (port) => {
-                //foreach (var port in ports) {
-                    if (IsPortOpen(startAddress.ToString(), port, (DateTime.Now.AddMilliseconds(timeout).TimeOfDay))){
-                        bool added = false;
-                        try
-                        {
-                            HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://" + startAddress.ToString() + ":" + port);
-                            request.Timeout = (int)(timeout);
-                            WebResponse response = request.GetResponse();
-                            ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.http);
-                            services.Add(si);
-                            added = true;
-                        }
-                        catch (WebException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                        catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                        catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
-                        try
-                        {
-                            HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://" + startAddress.ToString() + ":" + port);
-                            request.Timeout = (int)(timeout);
-                            WebResponse response = request.GetResponse();
-                            ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.https);
-                            services.Add(si);
-                            added = true;
-                        }
-                        catch (WebException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                        catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                        catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
-                        if (!added)
-                        {
-                            ServicesInfo si = new ServicesInfo("Unknown", "Unknown", startAddress.ToString(), port, Protocol.unknown);
-                            services.Add(si);
-                            added = true;
-                        }
-                    }
+                //Parallel.ForEach(ports, (port) => {
+                    foreach (var port in ports) {
+                    CheakIP(startAddress, port);
                     //if (endAddress.Equals(startAddress))
-                        //state.Stop();
-                        //break;
-                //}
-                });
+                    //state.Stop();
+                    //break;
+                    }
+                //});
                 startAddress = startAddress.GetNextAddress();
             });
             Notify?.Invoke("Thread end scan from " + startAddress.ToString() + " to " + endAddress.ToString());
@@ -158,58 +127,60 @@ namespace WebServerDetector.Classes
         }
         private bool ScanerThreadmDNS(IPAddress startAddress, IPAddress endAddress, List<int> ports)
         {
-            Notify?.Invoke("Thread start scan from " + startAddress.ToString() + " to " + endAddress.ToString());
+            Notify?.Invoke("Thread start scan from " + startAddress.ToString() + " to " + endAddress.ToString() + "with use DNS");
             int counttest = startAddress.GetAddressCountBetween(endAddress);
             Parallel.For(0, counttest, i => {
                 if (Dns.GetHostByAddress(startAddress)?.HostName.Length > 0)
                 {
-                    Parallel.ForEach(ports, (port) =>
+                    //Parallel.ForEach(ports, (port) =>
+                    //{
+                    foreach (var port in ports)
                     {
-                        //foreach (var port in ports) {
-                        if (IsPortOpen(startAddress.ToString(), port, (DateTime.Now.AddMilliseconds(timeout).TimeOfDay)))
-                        {
-                            bool added = false;
-                            try
-                            {
-                                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://" + startAddress.ToString() + ":" + port);
-                                request.Timeout = (int)(timeout);
-                                WebResponse response = request.GetResponse();
-                                ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.http);
-                                services.Add(si);
-                                added = true;
-                            }
-                            catch (WebException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                            catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                            catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
-                            try
-                            {
-                                HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://" + startAddress.ToString() + ":" + port);
-                                request.Timeout = (int)(timeout);
-                                WebResponse response = request.GetResponse();
-                                ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.https);
-                                services.Add(si);
-                                added = true;
-                            }
-                            catch (WebException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                            catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
-                            catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
-                            if (!added)
-                            {
-                                ServicesInfo si = new ServicesInfo("Unknown", "Unknown", startAddress.ToString(), port, Protocol.unknown);
-                                services.Add(si);
-                                added = true;
-                            }
-                        }
-                        //if (endAddress.Equals(startAddress))
-                        //state.Stop();
-                        //break;
-                        //}
-                    });
+                        CheakIP(startAddress, port);
+                    }
+                    //});
                 }
                 startAddress = startAddress.GetNextAddress();
             });
             Notify?.Invoke("Thread end scan from " + startAddress.ToString() + " to " + endAddress.ToString());
             return true;
+        }
+        private void CheakIP(IPAddress startAddress,int port)
+        {
+            if (IsPortOpen(startAddress.ToString(), port, (DateTime.Now.AddMilliseconds(timeout).TimeOfDay)))
+            {
+                bool added = false;
+                try
+                {
+                    HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://" + startAddress.ToString() + ":" + port);
+                    request.Timeout = (int)(timeout);
+                    WebResponse response = request.GetResponse();
+                    ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.http);
+                    services.Add(si);
+                    added = true;
+                }
+                catch (WebException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("http://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
+                try
+                {
+                    HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://" + startAddress.ToString() + ":" + port);
+                    request.Timeout = (int)(timeout);
+                    WebResponse response = request.GetResponse();
+                    ServicesInfo si = new ServicesInfo(response.Headers.Get("Server"), response.Headers.Get("Server"), startAddress.ToString(), port, Protocol.https);
+                    services.Add(si);
+                    added = true;
+                }
+                catch (WebException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                catch (TimeoutException ex) { System.Diagnostics.Debug.WriteLine("https://" + startAddress.ToString() + ":" + port + ex.ToString()); }
+                catch (Exception ex) { Notify?.Invoke(ex.ToString()); }
+                if (!added)
+                {
+                    ServicesInfo si = new ServicesInfo("Unknown", "Unknown", startAddress.ToString(), port, Protocol.unknown);
+                    services.Add(si);
+                    added = true;
+                }
+            }
         }
         bool IsPortOpen(string host, int port, TimeSpan timeout)
         {
