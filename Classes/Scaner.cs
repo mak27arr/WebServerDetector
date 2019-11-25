@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using WebServerDetector.Interfaces;
 using WebServerDetector.Classes.Helper;
 using System.Net.Sockets;
+using Tmds.MDns;
 
 namespace WebServerDetector.Classes
 {
@@ -22,6 +23,7 @@ namespace WebServerDetector.Classes
         private int timeout;
         private object scaningLocker = new object();
         private bool scanStartted = false;
+        private Tmds.MDns.ServiceBrowser mDnsScaner;
         public int RefreshTime { get; private set; }
         public bool UseDNS { get; set; }
         public delegate void MessageHandler(string msg);
@@ -44,7 +46,7 @@ namespace WebServerDetector.Classes
             this.threadCount = Environment.ProcessorCount * 8;
             this.network = network;
             this.subnetMask = subnetMask;
-            this.timeout = 100;
+            this.timeout = 200;
             this.portslist = new List<int>();
             services = new ConcurrentBag<ServicesInfo>();
             LicenseCheak.Cheak();
@@ -66,46 +68,88 @@ namespace WebServerDetector.Classes
         {
             if (scanStartted)
                 return false;
-            //Винесення в оремий потік тут скоріш завсе сповільнює сканування. Потрібно перевірити.
-            return await Task<bool>.Run(async ()=> {
-                //це капець який жорсткий баг
-                List<Task<bool>> taskscanlist = new List<Task<bool>>();
-                lock (scaningLocker)
-                {
-                    scanStartted = true;
-                    //services = new ConcurrentBag<ServicesInfo>();
-                    List<Tuple<IPAddress, IPAddress>> addresslist = new List<Tuple<IPAddress, IPAddress>>();
-                    if (network==null || subnetMask == null)
-                         addresslist = GetListAddresesForThread(this.network, this.subnetMask);
-                    else
-                        addresslist = GetListAddresesForThread(network, subnetMask);
-                    if (portslist == null)
-                        portslist = new List<int>();
-                    if (portslist == null || portslist.Count == 0)
-                    {
-                        portslist = new List<int>();
-                        for (int i = 0; i <= 65535; i++)
-                            portslist.Add(i);
-                    }
-                    foreach (var address in addresslist)
-                    {
-                        taskscanlist.Add(Task<bool>.Factory.StartNew(() => { return ScanerThread(address.Item1, address.Item2, portslist); })); ;
-                    }
-                }
-            await Task.WhenAll(taskscanlist.ToArray());
-                lock (scaningLocker)
-                {
-                    scanStartted = false;
-                    services = new ConcurrentBag<ServicesInfo>(services.ToList().Distinct());
-                }
-            foreach(var task in taskscanlist)
-            {
-                if (!task.Result)
-                    return false;
+            if (UseDNS) {
+                await Task<bool>.Factory.StartNew(() => {
+                    mDnsScaner = new Tmds.MDns.ServiceBrowser();
+                    List<string> st = new List<string>();
+                    st.Add("http");
+                    st.Add("https");
+                    st.Add("_https._tcp");
+                    mDnsScaner.ServiceAdded += delegate (object sender, ServiceAnnouncementEventArgs e) {
+                        Protocol protocol;
+                        if (e.Announcement.Type == "http")
+                            protocol = Protocol.http;
+                        else if(e.Announcement.Type == "https")
+                            protocol = Protocol.https;
+                        else
+                            protocol = Protocol.unknown;
+                        foreach (IPAddress add in e.Announcement.Addresses) {
+                            if (add.IsInSameSubnet(this.network, this.subnetMask))
+                            {
+                                ServicesInfo sw = new ServicesInfo(e.Announcement.Hostname, e.Announcement.Domain, add.ToString(), e.Announcement.Port, protocol);
+                                services.Add(sw);
+                            }
+                        }
+
+                    };
+                    mDnsScaner.ServiceRemoved += delegate (object sender, ServiceAnnouncementEventArgs e) {
+                        if (services != null)
+                        {
+                            services = new ConcurrentBag<ServicesInfo>(services.ToList().Where(x=>x.Name!=e.Announcement.Hostname).ToList());
+                        }
+                    };
+                    mDnsScaner.StartBrowse(st);
+                    return true;
+                });
+                return true;
             }
-            return true;
-                    
-            });
+            else
+            {
+                //Винесення в оремий потік тут скоріш завсе сповільнює сканування. Потрібно перевірити.
+                return await Task<bool>.Run(async () =>
+                {
+                    //це капець який жорсткий баг
+                    List<Task<bool>> taskscanlist = new List<Task<bool>>();
+                    lock (scaningLocker)
+                    {
+                        scanStartted = true;
+                        //services = new ConcurrentBag<ServicesInfo>();
+                        List<Tuple<IPAddress, IPAddress>> addresslist = new List<Tuple<IPAddress, IPAddress>>();
+                        if (network == null || subnetMask == null)
+                            addresslist = GetListAddresesForThread(this.network, this.subnetMask);
+                        else
+                            addresslist = GetListAddresesForThread(network, subnetMask);
+                        if (portslist == null)
+                            portslist = new List<int>();
+                        if (portslist == null || portslist.Count == 0)
+                        {
+                            portslist = new List<int>();
+                            for (int i = 0; i <= 65535; i++)
+                                portslist.Add(i);
+                        }
+                        foreach (var address in addresslist)
+                        {
+                            if (UseDNS)
+                                taskscanlist.Add(Task<bool>.Factory.StartNew(() => { return ScanerThreadmDNS(address.Item1, address.Item2, portslist); }));
+                            else
+                                taskscanlist.Add(Task<bool>.Factory.StartNew(() => { return ScanerThread(address.Item1, address.Item2, portslist); })); ;
+                        }
+                    }
+                    await Task.WhenAll(taskscanlist.ToArray());
+                    lock (scaningLocker)
+                    {
+                        scanStartted = false;
+                        services = new ConcurrentBag<ServicesInfo>(services.ToList().Distinct());
+                    }
+                    foreach (var task in taskscanlist)
+                    {
+                        if (!task.Result)
+                            return false;
+                    }
+                    return true;
+
+                });
+            }
         }
         private bool ScanerThread(IPAddress startAddress, IPAddress endAddress,List<int> ports)
         {
@@ -127,18 +171,25 @@ namespace WebServerDetector.Classes
         }
         private bool ScanerThreadmDNS(IPAddress startAddress, IPAddress endAddress, List<int> ports)
         {
-            Notify?.Invoke("Thread start scan from " + startAddress.ToString() + " to " + endAddress.ToString() + "with use DNS");
+            Notify?.Invoke("Thread start scan from " + startAddress.ToString() + " to " + endAddress.ToString() + " with use DNS");
             int counttest = startAddress.GetAddressCountBetween(endAddress);
             Parallel.For(0, counttest, i => {
-                if (Dns.GetHostByAddress(startAddress)?.HostName.Length > 0)
+                try
                 {
-                    //Parallel.ForEach(ports, (port) =>
-                    //{
-                    foreach (var port in ports)
+                    if (Dns.GetHostEntry(startAddress) != null)
                     {
-                        CheakIP(startAddress, port);
+                        //Parallel.ForEach(ports, (port) =>
+                        //{
+                        foreach (var port in ports)
+                        {
+                            CheakIP(startAddress, port);
+                        }
+                        //});
                     }
-                    //});
+                }
+                catch (SocketException ex)
+                {
+                    Console.WriteLine(startAddress.ToString() + " " + ex.Message);
                 }
                 startAddress = startAddress.GetNextAddress();
             });
@@ -246,17 +297,28 @@ namespace WebServerDetector.Classes
                 Notify?.Invoke("Scanning monitor already launched");
                 return false;
             }
-
-            scanTimer = new System.Timers.Timer(RefreshTime);
-            scanTimer.Elapsed += delegate{ ScanAsync(null, null); };
-            scanTimer.AutoReset = true;
-            scanTimer.Enabled = true;
-            Notify?.Invoke("Scanning monitor launched");
-            ScanAsync(null, null);
-            return true;
+            if (UseDNS) {
+                ScanAsync(null, null);
+                return true;
+            }
+            else
+            {
+                scanTimer = new System.Timers.Timer(RefreshTime);
+                scanTimer.Elapsed += delegate { ScanAsync(null, null); };
+                scanTimer.AutoReset = true;
+                scanTimer.Enabled = true;
+                Notify?.Invoke("Scanning monitor launched");
+                ScanAsync(null, null);
+                return true;
+            }
         }
         public bool StopScan()
         {
+            if (mDnsScaner != null)
+            {
+                mDnsScaner.StopBrowse();
+                mDnsScaner = null;
+            }
             if (scanTimer != null)
             {
                 scanTimer.Enabled = false;
