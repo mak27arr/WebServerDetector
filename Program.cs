@@ -7,6 +7,10 @@ using WebServerDetector.Classes;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore;
 
 namespace WebServerDetector
 {
@@ -63,6 +67,20 @@ namespace WebServerDetector
             webServer.StopAsync();
 
         }
+
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
+          Host.CreateDefaultBuilder(args)
+            .ConfigureLogging(
+              options => options.AddFilter<EventLogLoggerProvider>(level => level >= LogLevel.Information))
+            .ConfigureServices((hostContext, services) =>
+            {
+                services.AddHostedService<Worker>()
+          .Configure<EventLogSettings>(config =>
+                {
+                    config.LogName = "Sample Service";
+                    config.SourceName = "Sample Service Source";
+                });
+            }).UseWindowsService();
 
         static void PrintMsg(string msg)
         {
